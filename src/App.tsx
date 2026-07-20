@@ -87,7 +87,7 @@ const DEFAULT_DATA = {
   submitterDate: "",
   submittedToTitle: "Submitted To",
   submittedToName: "Prof. Dr. Sarah Jenkins",
-  logoUrl: "logo.png",
+  logoUrl: "/logo.png",
 };
 
 const DEFAULT_TEXT_STYLES = {
