@@ -137,7 +137,8 @@ const DEFAULT_DATA: CoverData = {
   submitterDate: "",
   submittedToTitle: "Submitted To",
   submittedToName: "socrates",
-  logoUrl: "./logo.png",
+  logoUrl:
+    "https://upload.wikimedia.org/wikipedia/en/thumb/5/54/Tribhuvan_University_logo.svg/330px-Tribhuvan_University_logo.svg.png",
 };
 
 const DEFAULT_TEXT_STYLES: Record<string, TextStyle> = {
