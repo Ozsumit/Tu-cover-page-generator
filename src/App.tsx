@@ -19,6 +19,7 @@ import {
   Sparkles,
   Download,
   FolderOpen,
+  LayoutGrid,
 } from "lucide-react";
 import { toPng, toJpeg } from "html-to-image";
 import { motion } from "motion/react";
@@ -27,7 +28,7 @@ import { Document, Packer, Paragraph, ImageRun } from "docx";
 import { saveAs } from "file-saver";
 
 // Base64 to Uint8Array converter for docx image insertion
-function base64ToUint8Array(base64: string) {
+function base64ToUint8Array(base64: string): Uint8Array {
   const binaryString = window.atob(base64);
   const len = binaryString.length;
   const bytes = new Uint8Array(len);
@@ -50,6 +51,51 @@ type TextStyle = {
   textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
 };
 
+type CoverData = {
+  collegeName: string;
+  address: string;
+  affiliation: string;
+  faculty: string;
+  program: string;
+  department: string;
+  subject: string;
+  assignmentType: string;
+  topic: string;
+  fulfillment: string;
+  submittedByTitle: string;
+  submitterNameLabel: string;
+  submitterName: string;
+  submitterRollLabel: string;
+  submitterRoll: string;
+  submitterSemLabel: string;
+  submitterSem: string;
+  submitterDateLabel: string;
+  submitterDate: string;
+  submittedToTitle: string;
+  submittedToName: string;
+  logoUrl: string;
+};
+
+type GlobalStyles = {
+  fontFamily: string;
+  textColor: string;
+  borderColor: string;
+  borderWidth: number;
+  borderStyle: string;
+  backgroundColor: string;
+  padding: number;
+};
+
+type VisibleSections = {
+  address: boolean;
+  affiliation: boolean;
+  logo: boolean;
+  courseDetails: boolean;
+  assignmentTopic: boolean;
+  submittedBy: boolean;
+  submittedTo: boolean;
+};
+
 const defaultStyle = (
   fontSize: number,
   isBold: boolean = false,
@@ -65,17 +111,21 @@ const defaultStyle = (
   marginBottom: 0,
   paddingTop: 0,
   paddingBottom: 0,
-  textTransform: "capitalize",
+  textTransform: "none",
 });
 
-const DEFAULT_DATA = {
+const DEFAULT_DATA: CoverData = {
   collegeName: "Padmashree College",
   address: "Tinkune, Kathmandu",
   affiliation: "Affiliated to Tribhuvan University",
+  faculty: "Faculty of Humanities and Social Sciences",
+  department: "Department of Computer Application",
   program: "Bachelor Of Computer Application (BCA)",
   subject: "Icarus and the sun",
   assignmentType: "Lab Report",
   topic: "Falling means i once soared",
+  fulfillment:
+    "In partial fulfillment of the requirements for the Bachelors Computer Application",
   submittedByTitle: "Submitted By",
   submitterNameLabel: "Name:",
   submitterName: "Sumit pokhrel",
@@ -86,18 +136,21 @@ const DEFAULT_DATA = {
   submitterDateLabel: "Date:",
   submitterDate: "",
   submittedToTitle: "Submitted To",
-  submittedToName: "Prof. Dr. Sarah Jenkins",
+  submittedToName: "socrates",
   logoUrl: "/logo.png",
 };
 
-const DEFAULT_TEXT_STYLES = {
+const DEFAULT_TEXT_STYLES: Record<string, TextStyle> = {
   collegeName: defaultStyle(34, true),
   address: defaultStyle(18, false),
   affiliation: defaultStyle(16, false),
+  faculty: defaultStyle(18, true),
   program: defaultStyle(24, true),
+  department: defaultStyle(18, true),
   subject: defaultStyle(32, true),
   assignmentType: defaultStyle(28, true),
   topic: defaultStyle(22, true, "center", "'Courier New', monospace"),
+  fulfillment: { ...defaultStyle(16, true), isItalic: true },
   submittedByTitle: defaultStyle(24, true),
   submitterNameLabel: defaultStyle(18, true),
   submitterName: defaultStyle(18, true, "center", "'Courier New', monospace"),
@@ -111,7 +164,7 @@ const DEFAULT_TEXT_STYLES = {
   submittedToName: defaultStyle(20, true),
 };
 
-const DEFAULT_GLOBAL_STYLES = {
+const DEFAULT_GLOBAL_STYLES: GlobalStyles = {
   fontFamily: "'Arial', 'Helvetica', sans-serif",
   textColor: "#0f172a",
   borderColor: "#1e3a8a",
@@ -121,7 +174,7 @@ const DEFAULT_GLOBAL_STYLES = {
   padding: 60,
 };
 
-const DEFAULT_VISIBLE_SECTIONS = {
+const DEFAULT_VISIBLE_SECTIONS: VisibleSections = {
   address: true,
   affiliation: true,
   logo: true,
@@ -133,7 +186,7 @@ const DEFAULT_VISIBLE_SECTIONS = {
 
 const THEME_PRESETS = [
   {
-    name: "Classic Navy",
+    name: "Classic Navy Border",
     primary: "#1e3a8a",
     text: "#0f172a",
     bg: "#ffffff",
@@ -142,7 +195,16 @@ const THEME_PRESETS = [
     borderWidth: 6,
   },
   {
-    name: "Crimson Academic",
+    name: "Classic Academic",
+    primary: "#0f172a",
+    text: "#0f172a",
+    bg: "#ffffff",
+    font: "'Times New Roman', Times, serif",
+    borderStyle: "none",
+    borderWidth: 0,
+  },
+  {
+    name: "Crimson Scholar",
     primary: "#991b1b",
     text: "#1e1b4b",
     bg: "#fffbeb",
@@ -159,26 +221,9 @@ const THEME_PRESETS = [
     borderStyle: "none",
     borderWidth: 0,
   },
-  {
-    name: "Forest Scholar",
-    primary: "#065f46",
-    text: "#022c22",
-    bg: "#fafdfb",
-    font: "'Georgia', serif",
-    borderStyle: "solid",
-    borderWidth: 4,
-  },
 ];
 
-const InputField = ({
-  label,
-  name,
-  value,
-  onChange,
-  textStyle,
-  onStyleChange,
-  inputType = "text",
-}: {
+interface InputFieldProps {
   label: string;
   name: string;
   value: string;
@@ -186,8 +231,19 @@ const InputField = ({
   textStyle?: TextStyle;
   onStyleChange?: (n: string, s: TextStyle) => void;
   inputType?: "text" | "date";
+}
+
+const InputField: React.FC<InputFieldProps> = ({
+  label,
+  name,
+  value,
+  onChange,
+  textStyle,
+  onStyleChange,
+  inputType = "text",
 }) => {
-  const [showStyle, setShowStyle] = useState(false);
+  const [showStyle, setShowStyle] = useState<boolean>(false);
+  const safeValue = value || "";
 
   return (
     <div className="mb-4">
@@ -208,16 +264,20 @@ const InputField = ({
       </div>
       {inputType === "text" ? (
         <textarea
-          value={value}
-          onChange={(e) => onChange(name, e.target.value)}
+          value={safeValue}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+            onChange(name, e.target.value)
+          }
           className="w-full px-3 py-1.5 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm min-h-[38px] resize-y"
-          rows={value.split("\n").length || 1}
+          rows={safeValue.split("\n").length || 1}
         />
       ) : (
         <input
           type={inputType}
-          value={value}
-          onChange={(e) => onChange(name, e.target.value)}
+          value={safeValue}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            onChange(name, e.target.value)
+          }
           className="w-full px-3 py-1.5 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm min-h-[38px]"
         />
       )}
@@ -230,7 +290,7 @@ const InputField = ({
             <input
               type="number"
               value={textStyle.fontSize}
-              onChange={(e) =>
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                 onStyleChange(name, {
                   ...textStyle,
                   fontSize: Number(e.target.value),
@@ -243,7 +303,7 @@ const InputField = ({
             <label className="block text-[10px] text-gray-500 mb-1">Font</label>
             <select
               value={textStyle.fontFamily}
-              onChange={(e) =>
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                 onStyleChange(name, {
                   ...textStyle,
                   fontFamily: e.target.value,
@@ -323,7 +383,7 @@ const InputField = ({
               </label>
               <select
                 value={textStyle.textTransform || "none"}
-                onChange={(e) =>
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                   onStyleChange(name, {
                     ...textStyle,
                     textTransform: e.target.value as any,
@@ -338,83 +398,160 @@ const InputField = ({
               </select>
             </div>
           </div>
-          <div className="col-span-2 grid grid-cols-4 gap-2 mt-2">
-            <div>
-              <label className="block text-[9px] text-gray-500 mb-1 leading-tight">
-                Margin Top
-              </label>
-              <input
-                type="number"
-                value={textStyle.marginTop ?? ""}
-                onChange={(e) =>
-                  onStyleChange(name, {
-                    ...textStyle,
-                    marginTop: e.target.value
-                      ? Number(e.target.value)
-                      : undefined,
-                  })
-                }
-                className="w-full px-1 py-1 border border-gray-300 rounded text-xs text-center"
-              />
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* --- Swiss Footer Component --- */
+interface SwissFooterProps {
+  onScrollToTop: () => void;
+}
+
+const SwissFooter: React.FC<SwissFooterProps> = ({ onScrollToTop }) => {
+  return (
+    <footer className="bg-black text-white pt-24 pb-12 px-8 md:px-16 font-sans relative overflow-hidden select-none border-t border-neutral-900 w-full flex-shrink-0">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-12 md:gap-8 items-start relative z-10">
+        {/* Column 1: Get In Touch links - Exact Helvetica Swiss Scale */}
+        <div className="md:col-span-5 space-y-6">
+          <h4 className="text-[11px] uppercase tracking-[0.2em] text-neutral-500 font-bold">
+            Get In Touch
+          </h4>
+          <div className="flex flex-col space-y-1 text-5xl md:text-[4.5rem] font-black tracking-tighter leading-[1.05]">
+            <a
+              href="mailto:pokhrelsumit36@gmail.com"
+              className="hover:text-neutral-400 transition-all hover:translate-x-1 duration-300 inline-block w-fit cursor-pointer"
+            >
+              Email
+            </a>
+            <a
+              href="https://instagram.com/sumitp._"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-neutral-400 transition-all hover:translate-x-1 duration-300 inline-block w-fit cursor-pointer"
+            >
+              Instagram
+            </a>
+            <a
+              href="https://github.com/ozsumit"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-neutral-400 transition-all hover:translate-x-1 duration-300 inline-block w-fit cursor-pointer"
+            >
+              GitHub
+            </a>
+            <a
+              href="https://www.linkedin.com/in/sumit-pokhrel-/"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-neutral-400 transition-all hover:translate-x-1 duration-300 inline-block w-fit cursor-pointer"
+            >
+              LinkedIn
+            </a>
+          </div>
+        </div>
+
+        {/* Column 2: Menu */}
+        <div className="md:col-span-2 space-y-6">
+          <h4 className="text-[11px] uppercase tracking-[0.2em] text-neutral-500 font-bold">
+            Menu
+          </h4>
+          <div className="flex flex-col space-y-3 text-lg font-bold text-neutral-200">
+            <a
+              href="#work"
+              className="hover:text-white transition-colors w-fit"
+            >
+              Work
+            </a>
+            <a
+              href="#contact"
+              className="hover:text-white transition-colors w-fit"
+            >
+              Contact
+            </a>
+          </div>
+        </div>
+
+        {/* Column 3: Legal */}
+        <div className="md:col-span-2 space-y-6">
+          <h4 className="text-[11px] uppercase tracking-[0.2em] text-neutral-500 font-bold">
+            Legal
+          </h4>
+          <div className="flex flex-col space-y-3 text-lg font-bold text-neutral-200">
+            <a
+              href="#privacy"
+              className="hover:text-white transition-colors w-fit"
+            >
+              Privacy
+            </a>
+          </div>
+        </div>
+
+        {/* Column 4: Redesigned Brands Section with Clean High Contrast Scaling */}
+        <div className="md:col-span-3 flex flex-col justify-between items-start md:items-end min-h-[220px] space-y-8 md:space-y-0">
+          <button
+            onClick={onScrollToTop}
+            className="flex items-center gap-3 group text-xs font-bold tracking-[0.15em] uppercase hover:text-neutral-300 transition-colors self-start md:self-auto"
+          >
+            <span>Back to Top</span>
+            <div className="w-9 h-9 rounded-full border border-neutral-700 flex items-center justify-center group-hover:bg-white group-hover:text-black group-hover:border-white transition-all">
+              <svg
+                className="w-3.5 h-3.5 transform group-hover:-translate-y-0.5 transition-transform"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2.5}
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M5 10l7-7m0 0l7 7m-7-7v18"
+                />
+              </svg>
             </div>
-            <div>
-              <label className="block text-[9px] text-gray-500 mb-1 leading-tight">
-                Margin Btm
-              </label>
-              <input
-                type="number"
-                value={textStyle.marginBottom ?? ""}
-                onChange={(e) =>
-                  onStyleChange(name, {
-                    ...textStyle,
-                    marginBottom: e.target.value
-                      ? Number(e.target.value)
-                      : undefined,
-                  })
-                }
-                className="w-full px-1 py-1 border border-gray-300 rounded text-xs text-center"
+          </button>
+
+          {/* Symmetrical Brand Column on Right */}
+          <div className="flex flex-col gap-5 items-start md:items-end w-full">
+            <h4 className="text-[10px] uppercase tracking-[0.2em] text-neutral-500 font-bold mb-1">
+              Projects & Brands
+            </h4>
+            <div className="flex gap-6 items-center justify-start md:justify-end w-full">
+              <img
+                src="https://cmoon.sumit.info.np/logo.svg"
+                alt="CMoon Brand Logo"
+                className="max-h-11 w-auto filter brightness-0 invert opacity-60 hover:opacity-100 transition-opacity duration-300"
               />
-            </div>
-            <div>
-              <label className="block text-[9px] text-gray-500 mb-1 leading-tight">
-                Pad Top
-              </label>
-              <input
-                type="number"
-                value={textStyle.paddingTop ?? ""}
-                onChange={(e) =>
-                  onStyleChange(name, {
-                    ...textStyle,
-                    paddingTop: e.target.value
-                      ? Number(e.target.value)
-                      : undefined,
-                  })
-                }
-                className="w-full px-1 py-1 border border-gray-300 rounded text-xs text-center"
-              />
-            </div>
-            <div>
-              <label className="block text-[9px] text-gray-500 mb-1 leading-tight">
-                Pad Btm
-              </label>
-              <input
-                type="number"
-                value={textStyle.paddingBottom ?? ""}
-                onChange={(e) =>
-                  onStyleChange(name, {
-                    ...textStyle,
-                    paddingBottom: e.target.value
-                      ? Number(e.target.value)
-                      : undefined,
-                  })
-                }
-                className="w-full px-1 py-1 border border-gray-300 rounded text-xs text-center"
+              <img
+                src="https://sumit.info.np/vass-logo.svg"
+                alt="Vass Brand Logo"
+                className="max-h-7 w-auto filter brightness-0 invert opacity-60 hover:opacity-100 transition-opacity duration-300"
               />
             </div>
           </div>
         </div>
-      )}
-    </div>
+      </div>
+
+      {/* Grid Divider line */}
+      <div className="border-t border-neutral-900 mt-20 mb-16 max-w-7xl mx-auto"></div>
+
+      {/* Massive Brutalist Swiss Text Overflow Display */}
+      <div className="max-w-7xl mx-auto overflow-hidden relative pointer-events-none select-none my-2">
+        <h1 className="text-[12vw] md:text-[14vw] font-black tracking-tighter leading-none text-neutral-900 uppercase whitespace-nowrap select-none">
+          SUMIT_POKHREL
+        </h1>
+      </div>
+
+      {/* Footer copyright and meta row */}
+      <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-[11px] text-neutral-600 font-semibold tracking-wider uppercase">
+        <p>© 2026 SUMIT POKHREL</p>
+        <p className="text-neutral-700">
+          Swiss Brutalist Studio & Design Workspace
+        </p>
+      </div>
+    </footer>
   );
 };
 
@@ -423,38 +560,79 @@ export default function App() {
     "content",
   );
 
-  // Load from local storage or fallback to defaults
-  const [data, setData] = useState(() => {
+  const [selectedLayout, setSelectedLayout] = useState<"split" | "centered">(
+    () => {
+      const saved = localStorage.getItem("cover_builder_selected_layout");
+      return (saved as "split" | "centered") || "split";
+    },
+  );
+
+  // Load from local storage and safely merge to prevent missing newly introduced keys
+  const [data, setData] = useState<CoverData>(() => {
     const saved = localStorage.getItem("cover_builder_data");
-    return saved ? JSON.parse(saved) : DEFAULT_DATA;
+    if (saved) {
+      try {
+        return { ...DEFAULT_DATA, ...JSON.parse(saved) };
+      } catch (e) {
+        return DEFAULT_DATA;
+      }
+    }
+    return DEFAULT_DATA;
   });
 
   const [textStyles, setTextStyles] = useState<Record<string, TextStyle>>(
     () => {
       const saved = localStorage.getItem("cover_builder_text_styles");
-      return saved ? JSON.parse(saved) : DEFAULT_TEXT_STYLES;
+      if (saved) {
+        try {
+          return { ...DEFAULT_TEXT_STYLES, ...JSON.parse(saved) };
+        } catch (e) {
+          return DEFAULT_TEXT_STYLES;
+        }
+      }
+      return DEFAULT_TEXT_STYLES;
     },
   );
 
-  const [globalStyles, setGlobalStyles] = useState(() => {
+  const [globalStyles, setGlobalStyles] = useState<GlobalStyles>(() => {
     const saved = localStorage.getItem("cover_builder_global_styles");
-    return saved ? JSON.parse(saved) : DEFAULT_GLOBAL_STYLES;
+    if (saved) {
+      try {
+        return { ...DEFAULT_GLOBAL_STYLES, ...JSON.parse(saved) };
+      } catch (e) {
+        return DEFAULT_GLOBAL_STYLES;
+      }
+    }
+    return DEFAULT_GLOBAL_STYLES;
   });
 
-  const [visibleSections, setVisibleSections] = useState(() => {
-    const saved = localStorage.getItem("cover_builder_visible_sections");
-    return saved ? JSON.parse(saved) : DEFAULT_VISIBLE_SECTIONS;
-  });
+  const [visibleSections, setVisibleSections] = useState<VisibleSections>(
+    () => {
+      const saved = localStorage.getItem("cover_builder_visible_sections");
+      if (saved) {
+        try {
+          return { ...DEFAULT_VISIBLE_SECTIONS, ...JSON.parse(saved) };
+        } catch (e) {
+          return DEFAULT_VISIBLE_SECTIONS;
+        }
+      }
+      return DEFAULT_VISIBLE_SECTIONS;
+    },
+  );
 
-  const [layoutKey, setLayoutKey] = useState(0);
-  const [isExporting, setIsExporting] = useState(false);
-  const [scale, setScale] = useState(1);
+  const [layoutKey, setLayoutKey] = useState<number>(0);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [scale, setScale] = useState<number>(1);
 
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const workspaceScrollRef = useRef<HTMLDivElement>(null);
 
   // Sync state to local storage automatically
+  useEffect(() => {
+    localStorage.setItem("cover_builder_selected_layout", selectedLayout);
+  }, [selectedLayout]);
+
   useEffect(() => {
     localStorage.setItem("cover_builder_data", JSON.stringify(data));
   }, [data]);
@@ -505,12 +683,15 @@ export default function App() {
   }, []);
 
   const handleDataChange = useCallback((name: string, value: string) => {
-    setData((prev: typeof DEFAULT_DATA) => ({ ...prev, [name]: value }));
+    setData((prev: CoverData) => ({ ...prev, [name]: value }));
   }, []);
 
   const handleTextStyleChange = useCallback(
     (name: string, style: TextStyle) => {
-      setTextStyles((prev) => ({ ...prev, [name]: style }));
+      setTextStyles((prev: Record<string, TextStyle>) => ({
+        ...prev,
+        [name]: style,
+      }));
     },
     [],
   );
@@ -519,19 +700,22 @@ export default function App() {
     e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>,
   ) => {
     const { name, value } = e.target;
-    setGlobalStyles((prev) => ({
+    setGlobalStyles((prev: GlobalStyles) => ({
       ...prev,
       [name]:
         name === "borderWidth" || name === "padding" ? Number(value) : value,
     }));
   };
 
-  const toggleSection = (section: keyof typeof DEFAULT_VISIBLE_SECTIONS) => {
-    setVisibleSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  const toggleSection = (section: keyof VisibleSections) => {
+    setVisibleSections((prev: VisibleSections) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
   };
 
   const applyPresetTheme = (preset: (typeof THEME_PRESETS)[0]) => {
-    setGlobalStyles((prev) => ({
+    setGlobalStyles((prev: GlobalStyles) => ({
       ...prev,
       fontFamily: preset.font,
       textColor: preset.text,
@@ -547,7 +731,7 @@ export default function App() {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setData((prev: typeof DEFAULT_DATA) => ({
+        setData((prev: CoverData) => ({
           ...prev,
           logoUrl: reader.result as string,
         }));
@@ -557,7 +741,7 @@ export default function App() {
   };
 
   const removeLogo = () => {
-    setData((prev: typeof DEFAULT_DATA) => ({ ...prev, logoUrl: "" }));
+    setData((prev: CoverData) => ({ ...prev, logoUrl: "" }));
   };
 
   const handleReset = () => {
@@ -568,14 +752,14 @@ export default function App() {
       setTextStyles(DEFAULT_TEXT_STYLES);
       setGlobalStyles(DEFAULT_GLOBAL_STYLES);
       setVisibleSections(DEFAULT_VISIBLE_SECTIONS);
-      setLayoutKey((prev) => prev + 1);
+      setLayoutKey((prev: number) => prev + 1);
     }
   };
 
-  // Export current configuration state as JSON file
   const handleExportConfig = () => {
     const configData = {
       version: 1,
+      selectedLayout,
       data,
       textStyles,
       globalStyles,
@@ -587,22 +771,21 @@ export default function App() {
     saveAs(blob, "cover-page-config.json");
   };
 
-  // Import configuration state from JSON file
   const handleImportConfig = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = (event: ProgressEvent<FileReader>) => {
       try {
         const parsed = JSON.parse(event.target?.result as string);
         if (parsed.data && parsed.textStyles && parsed.globalStyles) {
           setData(parsed.data);
           setTextStyles(parsed.textStyles);
           setGlobalStyles(parsed.globalStyles);
-          if (parsed.visibleSections) {
+          if (parsed.selectedLayout) setSelectedLayout(parsed.selectedLayout);
+          if (parsed.visibleSections)
             setVisibleSections(parsed.visibleSections);
-          }
           alert("Configuration loaded successfully.");
         } else {
           alert("Invalid configuration structure.");
@@ -701,7 +884,7 @@ export default function App() {
           ],
         });
 
-        Packer.toBlob(doc).then((blob) => {
+        Packer.toBlob(doc).then((blob: Blob) => {
           saveAs(blob, "cover-page.docx");
         });
       }
@@ -712,22 +895,33 @@ export default function App() {
     }
   };
 
-  const getStyleObj = (style: TextStyle) => ({
-    fontSize: `${style.fontSize}px`,
-    fontWeight: style.isBold ? "bold" : "normal",
-    fontStyle: style.isItalic ? "italic" : "normal",
-    fontFamily: style.fontFamily !== "inherit" ? style.fontFamily : "inherit",
-    textAlign: style.textAlign || ("center" as any),
-    marginTop: style.marginTop ? `${style.marginTop}px` : undefined,
-    marginBottom: style.marginBottom ? `${style.marginBottom}px` : undefined,
-    paddingTop: style.paddingTop ? `${style.paddingTop}px` : undefined,
-    paddingBottom: style.paddingBottom ? `${style.paddingBottom}px` : undefined,
-    textTransform:
-      style.textTransform && style.textTransform !== "none"
-        ? style.textTransform
+  const getStyleObj = (style: TextStyle): React.CSSProperties => {
+    if (!style) return {};
+    return {
+      fontSize: `${style.fontSize}px`,
+      fontWeight: style.isBold ? "bold" : "normal",
+      fontStyle: style.isItalic ? "italic" : "normal",
+      fontFamily: style.fontFamily !== "inherit" ? style.fontFamily : "inherit",
+      textAlign: style.textAlign || "center",
+      marginTop: style.marginTop ? `${style.marginTop}px` : undefined,
+      marginBottom: style.marginBottom ? `${style.marginBottom}px` : undefined,
+      paddingTop: style.paddingTop ? `${style.paddingTop}px` : undefined,
+      paddingBottom: style.paddingBottom
+        ? `${style.paddingBottom}px`
         : undefined,
-    whiteSpace: "pre-wrap" as any,
-  });
+      textTransform:
+        style.textTransform && style.textTransform !== "none"
+          ? style.textTransform
+          : undefined,
+      whiteSpace: "pre-wrap" as any,
+    };
+  };
+
+  const handleScrollToTop = () => {
+    if (workspaceScrollRef.current) {
+      workspaceScrollRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
 
   return (
     <div className="flex h-screen bg-slate-200 overflow-hidden font-sans antialiased text-slate-800">
@@ -792,7 +986,7 @@ export default function App() {
             onClick={() => setActiveTab("layout")}
             className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 border-b-2 transition-all ${activeTab === "layout" ? "border-blue-600 text-blue-600 bg-white" : "border-transparent text-slate-500 hover:text-slate-800"}`}
           >
-            <Eye size={14} /> Visibility
+            <Eye size={14} /> Layout Options
           </button>
         </div>
 
@@ -807,18 +1001,57 @@ export default function App() {
                   size={14}
                 />
                 <p>
-                  You can click and drag elements directly inside the A4 sheet
-                  preview to fine-tune spacing and vertical layout positioning.
+                  Switch styles in the Layout tab. Drag fields in the canvas to
+                  adjust precise spacing.
                 </p>
+              </div>
+
+              {/* Layout Switcher Card directly under hints */}
+              <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/50 space-y-3">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-2">
+                  <LayoutGrid size={14} /> Select Design Option
+                </h2>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setSelectedLayout("split")}
+                    className={`p-2.5 rounded-lg border text-xs font-semibold text-center transition-all ${selectedLayout === "split" ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-white text-slate-700 hover:bg-slate-50 border-slate-200"}`}
+                  >
+                    Split Column (Layout 1)
+                  </button>
+                  <button
+                    onClick={() => setSelectedLayout("centered")}
+                    className={`p-2.5 rounded-lg border text-xs font-semibold text-center transition-all ${selectedLayout === "centered" ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-white text-slate-700 hover:bg-slate-50 border-slate-200"}`}
+                  >
+                    Centered Academic (Layout 2)
+                  </button>
+                </div>
               </div>
 
               {/* Institution Details */}
               <div className="border border-slate-100 rounded-lg p-4 bg-slate-50/50 space-y-4">
                 <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-                  Institution
+                  Institution Details
                 </h2>
+                {visibleSections.affiliation && (
+                  <InputField
+                    label="University Affiliation"
+                    name="affiliation"
+                    value={data.affiliation}
+                    onChange={handleDataChange}
+                    textStyle={textStyles.affiliation}
+                    onStyleChange={handleTextStyleChange}
+                  />
+                )}
                 <InputField
-                  label="College / University Name"
+                  label="Faculty Name"
+                  name="faculty"
+                  value={data.faculty}
+                  onChange={handleDataChange}
+                  textStyle={textStyles.faculty}
+                  onStyleChange={handleTextStyleChange}
+                />
+                <InputField
+                  label="College / Center Name"
                   name="collegeName"
                   value={data.collegeName}
                   onChange={handleDataChange}
@@ -827,21 +1060,11 @@ export default function App() {
                 />
                 {visibleSections.address && (
                   <InputField
-                    label="Address"
+                    label="Address / Location"
                     name="address"
                     value={data.address}
                     onChange={handleDataChange}
                     textStyle={textStyles.address}
-                    onStyleChange={handleTextStyleChange}
-                  />
-                )}
-                {visibleSections.affiliation && (
-                  <InputField
-                    label="Affiliation"
-                    name="affiliation"
-                    value={data.affiliation}
-                    onChange={handleDataChange}
-                    textStyle={textStyles.affiliation}
                     onStyleChange={handleTextStyleChange}
                   />
                 )}
@@ -851,10 +1074,18 @@ export default function App() {
               {visibleSections.courseDetails && (
                 <div className="border border-slate-100 rounded-lg p-4 bg-slate-50/50 space-y-4">
                   <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-                    Course / Program
+                    Department & Subject Info
                   </h2>
                   <InputField
-                    label="Program & Semester"
+                    label="Department"
+                    name="department"
+                    value={data.department}
+                    onChange={handleDataChange}
+                    textStyle={textStyles.department}
+                    onStyleChange={handleTextStyleChange}
+                  />
+                  <InputField
+                    label="Program / Degree"
                     name="program"
                     value={data.program}
                     onChange={handleDataChange}
@@ -862,7 +1093,7 @@ export default function App() {
                     onStyleChange={handleTextStyleChange}
                   />
                   <InputField
-                    label="Subject Name"
+                    label="Subject Code & Title"
                     name="subject"
                     value={data.subject}
                     onChange={handleDataChange}
@@ -905,10 +1136,10 @@ export default function App() {
               {visibleSections.assignmentTopic && (
                 <div className="border border-slate-100 rounded-lg p-4 bg-slate-50/50 space-y-4">
                   <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-                    Topic
+                    Topic Header & Document Title
                   </h2>
                   <InputField
-                    label="Assignment / Work Type"
+                    label="Label / Work Type (e.g. A COMPANY REPORT ON)"
                     name="assignmentType"
                     value={data.assignmentType}
                     onChange={handleDataChange}
@@ -916,7 +1147,7 @@ export default function App() {
                     onStyleChange={handleTextStyleChange}
                   />
                   <InputField
-                    label="Topic / Title"
+                    label="Main Document Title"
                     name="topic"
                     value={data.topic}
                     onChange={handleDataChange}
@@ -925,6 +1156,21 @@ export default function App() {
                   />
                 </div>
               )}
+
+              {/* Fulfillment Text Statement */}
+              <div className="border border-slate-100 rounded-lg p-4 bg-slate-50/50 space-y-4">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  Declaration Statement
+                </h2>
+                <InputField
+                  label="Fulfillment Text (Required for layout 2)"
+                  name="fulfillment"
+                  value={data.fulfillment}
+                  onChange={handleDataChange}
+                  textStyle={textStyles.fulfillment}
+                  onStyleChange={handleTextStyleChange}
+                />
+              </div>
 
               {/* Submitter Metadata */}
               {visibleSections.submittedBy && (
@@ -950,7 +1196,7 @@ export default function App() {
                       onStyleChange={handleTextStyleChange}
                     />
                     <InputField
-                      label="Name"
+                      label="Student Name"
                       name="submitterName"
                       value={data.submitterName}
                       onChange={handleDataChange}
@@ -1217,30 +1463,54 @@ export default function App() {
             </div>
           )}
 
-          {/* Tab 3: Layout Configuration & Field Visibility */}
+          {/* Tab 3: Layout Options & Field Visibility */}
           {activeTab === "layout" && (
             <div className="space-y-4 animate-fadeIn">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+              {/* Layout Switcher option */}
+              <div className="border border-slate-200 rounded-lg p-4 bg-white space-y-3 shadow-sm">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                  <LayoutGrid size={14} className="text-blue-600" /> Structure
+                  Variant
+                </h2>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => setSelectedLayout("split")}
+                    className={`p-3 rounded-lg border text-xs font-semibold text-left transition-all flex justify-between items-center ${selectedLayout === "split" ? "bg-blue-50 text-blue-800 border-blue-500" : "bg-white text-slate-700 hover:bg-slate-50 border-slate-200"}`}
+                  >
+                    <span>Column split (Layout 1)</span>
+                    {selectedLayout === "split" && (
+                      <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setSelectedLayout("centered")}
+                    className={`p-3 rounded-lg border text-xs font-semibold text-left transition-all flex justify-between items-center ${selectedLayout === "centered" ? "bg-blue-50 text-blue-800 border-blue-500" : "bg-white text-slate-700 hover:bg-slate-50 border-slate-200"}`}
+                  >
+                    <span>Centered academic (Layout 2)</span>
+                    {selectedLayout === "centered" && (
+                      <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 pt-2">
                 Toggle Component Visibility
               </h3>
-              <p className="text-xs text-slate-500 mb-4">
-                Disable optional sections easily if your university format does
-                not require them.
-              </p>
 
-              <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden bg-white">
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
                 <div className="flex items-center justify-between p-3.5 hover:bg-slate-50 transition-colors">
                   <div className="flex flex-col">
                     <span className="text-xs font-bold text-slate-800">
                       Address Details
                     </span>
                     <span className="text-[10px] text-slate-500">
-                      Displays address below college name
+                      Displays address below college
                     </span>
                   </div>
                   <button
                     onClick={() => toggleSection("address")}
-                    className={`p-1.5 rounded-md transition-all ${visibleSections.address ? "bg-blue-50 text-blue-600 hover:bg-blue-100" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                    className={`p-1.5 rounded-md transition-all ${visibleSections.address ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-400"}`}
                   >
                     {visibleSections.address ? (
                       <Eye size={16} />
@@ -1261,7 +1531,7 @@ export default function App() {
                   </div>
                   <button
                     onClick={() => toggleSection("affiliation")}
-                    className={`p-1.5 rounded-md transition-all ${visibleSections.affiliation ? "bg-blue-50 text-blue-600 hover:bg-blue-100" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                    className={`p-1.5 rounded-md transition-all ${visibleSections.affiliation ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-400"}`}
                   >
                     {visibleSections.affiliation ? (
                       <Eye size={16} />
@@ -1277,12 +1547,12 @@ export default function App() {
                       Institution Logo
                     </span>
                     <span className="text-[10px] text-slate-500">
-                      Shows uploaded image or a placeholder
+                      Shows uploaded brand logo image
                     </span>
                   </div>
                   <button
                     onClick={() => toggleSection("logo")}
-                    className={`p-1.5 rounded-md transition-all ${visibleSections.logo ? "bg-blue-50 text-blue-600 hover:bg-blue-100" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                    className={`p-1.5 rounded-md transition-all ${visibleSections.logo ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-400"}`}
                   >
                     {visibleSections.logo ? (
                       <Eye size={16} />
@@ -1298,12 +1568,12 @@ export default function App() {
                       Course & Program
                     </span>
                     <span className="text-[10px] text-slate-500">
-                      Shows Degree and Subject names
+                      Shows Degree and Subject fields
                     </span>
                   </div>
                   <button
                     onClick={() => toggleSection("courseDetails")}
-                    className={`p-1.5 rounded-md transition-all ${visibleSections.courseDetails ? "bg-blue-50 text-blue-600 hover:bg-blue-100" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                    className={`p-1.5 rounded-md transition-all ${visibleSections.courseDetails ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-400"}`}
                   >
                     {visibleSections.courseDetails ? (
                       <Eye size={16} />
@@ -1316,15 +1586,15 @@ export default function App() {
                 <div className="flex items-center justify-between p-3.5 hover:bg-slate-50 transition-colors">
                   <div className="flex flex-col">
                     <span className="text-xs font-bold text-slate-800">
-                      Assignment Topic Block
+                      Assignment Topic Wrapper
                     </span>
                     <span className="text-[10px] text-slate-500">
-                      The core topic block and underline
+                      The core topic block wrapper
                     </span>
                   </div>
                   <button
                     onClick={() => toggleSection("assignmentTopic")}
-                    className={`p-1.5 rounded-md transition-all ${visibleSections.assignmentTopic ? "bg-blue-50 text-blue-600 hover:bg-blue-100" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                    className={`p-1.5 rounded-md transition-all ${visibleSections.assignmentTopic ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-400"}`}
                   >
                     {visibleSections.assignmentTopic ? (
                       <Eye size={16} />
@@ -1340,12 +1610,12 @@ export default function App() {
                       Submitted By Panel
                     </span>
                     <span className="text-[10px] text-slate-500">
-                      Left metadata section (Name, Roll, Sem)
+                      Student identity parameters
                     </span>
                   </div>
                   <button
                     onClick={() => toggleSection("submittedBy")}
-                    className={`p-1.5 rounded-md transition-all ${visibleSections.submittedBy ? "bg-blue-50 text-blue-600 hover:bg-blue-100" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                    className={`p-1.5 rounded-md transition-all ${visibleSections.submittedBy ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-400"}`}
                   >
                     {visibleSections.submittedBy ? (
                       <Eye size={16} />
@@ -1361,12 +1631,12 @@ export default function App() {
                       Submitted To Panel
                     </span>
                     <span className="text-[10px] text-slate-500">
-                      Right metadata section (Instructor/Teacher)
+                      Instructor evaluation target
                     </span>
                   </div>
                   <button
                     onClick={() => toggleSection("submittedTo")}
-                    className={`p-1.5 rounded-md transition-all ${visibleSections.submittedTo ? "bg-blue-50 text-blue-600 hover:bg-blue-100" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                    className={`p-1.5 rounded-md transition-all ${visibleSections.submittedTo ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-400"}`}
                   >
                     {visibleSections.submittedTo ? (
                       <Eye size={16} />
@@ -1378,8 +1648,8 @@ export default function App() {
               </div>
 
               <button
-                onClick={() => setLayoutKey((prev) => prev + 1)}
-                className="mt-4 w-full flex items-center justify-center py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider rounded transition-colors"
+                onClick={() => setLayoutKey((prev: number) => prev + 1)}
+                className="mt-4 w-full flex items-center justify-center py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider rounded transition-colors border border-slate-200"
               >
                 Reset Draggable Coordinates
               </button>
@@ -1425,304 +1695,504 @@ export default function App() {
         </div>
       </div>
 
-      {/* Preview Workspace Area */}
+      {/* Preview Workspace Area with Scroll Wrapper for Workspace & Swiss Footer */}
       <div
-        ref={previewContainerRef}
-        className="flex-1 bg-slate-300 relative flex justify-center items-center overflow-hidden"
+        ref={workspaceScrollRef}
+        className="flex-1 bg-slate-300 overflow-y-auto flex flex-col justify-between"
       >
+        {/* Workspace centered area */}
         <div
-          className="transition-transform duration-200 origin-center"
-          style={{ transform: `scale(${scale})` }}
+          ref={previewContainerRef}
+          className="flex-shrink-0 py-16 px-8 flex justify-center items-center min-h-[1180px]"
         >
-          {/* A4 Page Layout Wrapper (Strictly 794x1123 @ 96 DPI) */}
           <div
-            id="cover-page"
-            className="shadow-2xl relative flex flex-col box-border overflow-hidden select-none"
-            style={{
-              width: "794px",
-              height: "1123px",
-              padding: `${globalStyles.padding}px`,
-              fontFamily: globalStyles.fontFamily,
-              color: globalStyles.textColor,
-              backgroundColor: globalStyles.backgroundColor,
-              border:
-                globalStyles.borderWidth > 0
-                  ? `${globalStyles.borderWidth}px ${globalStyles.borderStyle} ${globalStyles.borderColor}`
-                  : "none",
-            }}
+            className="transition-transform duration-200 origin-center"
+            style={{ transform: `scale(${scale})` }}
           >
+            {/* A4 Page Layout Wrapper (Strictly 794x1123 @ 96 DPI) */}
             <div
-              key={layoutKey}
-              className="flex-1 flex flex-col h-full w-full justify-between"
-              ref={pageRef}
+              id="cover-page"
+              className="shadow-2xl relative flex flex-col box-border overflow-hidden select-none"
+              style={{
+                width: "794px",
+                height: "1123px",
+                padding: `${globalStyles.padding}px`,
+                fontFamily: globalStyles.fontFamily,
+                color: globalStyles.textColor,
+                backgroundColor: globalStyles.backgroundColor,
+                border:
+                  globalStyles.borderWidth > 0
+                    ? `${globalStyles.borderWidth}px ${globalStyles.borderStyle} ${globalStyles.borderColor}`
+                    : "none",
+              }}
             >
-              {/* College Header */}
-              <motion.div
-                drag
-                dragConstraints={pageRef}
-                dragMomentum={false}
-                className={`flex flex-col p-2 rounded transition-colors relative z-10 ${!isExporting ? "cursor-move hover:bg-slate-100/60 hover:outline hover:outline-2 hover:outline-dashed hover:outline-blue-400" : ""}`}
-                style={{
-                  textAlign: textStyles.collegeName?.textAlign || "center",
-                }}
-              >
-                <h1
-                  style={getStyleObj(textStyles.collegeName)}
-                  className="mb-1 leading-tight"
+              {selectedLayout === "split" ? (
+                /* Original Column Split Layout (Layout 1) */
+                <div
+                  key={`split-${layoutKey}`}
+                  className="flex-1 flex flex-col h-full w-full justify-between"
+                  ref={pageRef}
                 >
-                  {data.collegeName || (
-                    <span className="inline-block h-[0.8em] w-3/4 bg-slate-200/60 rounded no-print"></span>
-                  )}
-                </h1>
-                {visibleSections.address && (
-                  <p
-                    style={getStyleObj(textStyles.address)}
-                    className="mb-1 leading-tight"
+                  {/* College Header */}
+                  <motion.div
+                    drag
+                    dragConstraints={pageRef}
+                    dragMomentum={false}
+                    className={`flex flex-col p-2 rounded transition-colors relative z-10 ${!isExporting ? "cursor-move hover:bg-slate-100/60 hover:ring-2 hover:ring-dashed hover:ring-blue-400" : ""}`}
+                    style={{
+                      textAlign: textStyles.collegeName?.textAlign || "center",
+                    }}
                   >
-                    {data.address || (
-                      <span className="inline-block h-[0.8em] w-1/2 bg-slate-200/60 rounded no-print"></span>
-                    )}
-                  </p>
-                )}
-                {visibleSections.affiliation && (
-                  <p
-                    style={getStyleObj(textStyles.affiliation)}
-                    className="leading-tight"
-                  >
-                    {data.affiliation || (
-                      <span className="inline-block h-[0.8em] w-1/2 bg-slate-200/60 rounded no-print"></span>
-                    )}
-                  </p>
-                )}
-              </motion.div>
-
-              {/* Course Info */}
-              {visibleSections.courseDetails && (
-                <motion.div
-                  drag
-                  dragConstraints={pageRef}
-                  dragMomentum={false}
-                  className={`flex flex-col p-2 rounded transition-colors relative z-10 ${!isExporting ? "cursor-move hover:bg-slate-100/60 hover:outline hover:outline-2 hover:outline-dashed hover:outline-blue-400" : ""}`}
-                  style={{
-                    textAlign: textStyles.program?.textAlign || "center",
-                  }}
-                >
-                  <h2
-                    style={getStyleObj(textStyles.program)}
-                    className="mb-2 leading-tight"
-                  >
-                    {data.program || (
-                      <span className="inline-block h-[0.8em] w-2/3 bg-slate-200/60 rounded no-print"></span>
-                    )}
-                  </h2>
-                  <h1
-                    style={getStyleObj(textStyles.subject)}
-                    className="leading-tight px-4"
-                  >
-                    {data.subject || (
-                      <span className="inline-block h-[0.8em] w-3/4 bg-slate-200/60 rounded no-print"></span>
-                    )}
-                  </h1>
-                </motion.div>
-              )}
-
-              {/* Logo Area */}
-              {visibleSections.logo && (
-                <motion.div
-                  drag
-                  dragConstraints={pageRef}
-                  dragMomentum={false}
-                  className={`flex items-center justify-center min-h-[140px] max-h-[280px] p-2 rounded transition-colors relative z-10 ${!isExporting ? "cursor-move hover:bg-slate-100/60 hover:outline hover:outline-2 hover:outline-dashed hover:outline-blue-400" : ""}`}
-                >
-                  {data.logoUrl ? (
-                    <img
-                      src={data.logoUrl}
-                      alt="Logo"
-                      className="max-w-full max-h-[220px] object-contain pointer-events-none"
-                    />
-                  ) : (
-                    <div className="w-[160px] h-[160px] border-[3px] border-dashed border-slate-300 text-slate-400 flex flex-col items-center justify-center rounded-xl no-print">
-                      <ImageIcon size={48} className="mb-2 opacity-50" />
-                      <span className="text-xs text-center px-4">
-                        Upload in sidebar
-                      </span>
-                    </div>
-                  )}
-                </motion.div>
-              )}
-
-              {/* Topic Information Block */}
-              {visibleSections.assignmentTopic && (
-                <motion.div
-                  drag
-                  dragConstraints={pageRef}
-                  dragMomentum={false}
-                  className={`flex flex-col p-2 rounded transition-colors relative z-10 ${!isExporting ? "cursor-move hover:bg-slate-100/60 hover:outline hover:outline-2 hover:outline-dashed hover:outline-blue-400" : ""}`}
-                  style={{
-                    textAlign: textStyles.assignmentType?.textAlign || "center",
-                  }}
-                >
-                  <h2
-                    style={getStyleObj(textStyles.assignmentType)}
-                    className="mb-1.5 leading-tight"
-                  >
-                    {data.assignmentType || (
-                      <span className="inline-block h-[0.8em] w-1/2 bg-slate-200/60 rounded no-print"></span>
-                    )}
-                  </h2>
-                  <div
-                    className={`inline-block border-b-[3px] border-dotted border-[currentColor] px-10 pb-2 ${textStyles.assignmentType?.textAlign === "left" ? "self-start" : textStyles.assignmentType?.textAlign === "right" ? "self-end" : "self-center"}`}
-                  >
-                    <span
-                      style={getStyleObj(textStyles.topic)}
-                      className="leading-tight"
+                    <h1
+                      style={getStyleObj(textStyles.collegeName)}
+                      className="mb-1 leading-tight"
                     >
-                      {data.topic || (
-                        <span className="inline-block h-[0.8em] w-32 bg-slate-200/60 rounded no-print"></span>
+                      {data.collegeName || (
+                        <span className="inline-block h-[0.8em] w-3/4 bg-slate-200/60 rounded no-print"></span>
                       )}
-                    </span>
-                  </div>
-                </motion.div>
-              )}
+                    </h1>
+                    {visibleSections.address && (
+                      <p
+                        style={getStyleObj(textStyles.address)}
+                        className="mb-1 leading-tight"
+                      >
+                        {data.address || (
+                          <span className="inline-block h-[0.8em] w-1/2 bg-slate-200/60 rounded no-print"></span>
+                        )}
+                      </p>
+                    )}
+                    {visibleSections.affiliation && (
+                      <p
+                        style={getStyleObj(textStyles.affiliation)}
+                        className="leading-tight"
+                      >
+                        {data.affiliation || (
+                          <span className="inline-block h-[0.8em] w-1/2 bg-slate-200/60 rounded no-print"></span>
+                        )}
+                      </p>
+                    )}
+                  </motion.div>
 
-              {/* Submitted By / Submitted To Container Block */}
-              {(visibleSections.submittedBy || visibleSections.submittedTo) && (
-                <motion.div
-                  drag
-                  dragConstraints={pageRef}
-                  dragMomentum={false}
-                  className={`flex flex-row justify-between w-full relative mt-auto p-2 rounded transition-colors z-10 ${!isExporting ? "cursor-move hover:bg-slate-100/60 hover:outline hover:outline-2 hover:outline-dashed hover:outline-blue-400" : ""}`}
+                  {/* Course Info */}
+                  {visibleSections.courseDetails && (
+                    <motion.div
+                      drag
+                      dragConstraints={pageRef}
+                      dragMomentum={false}
+                      className={`flex flex-col p-2 rounded transition-colors relative z-10 ${!isExporting ? "cursor-move hover:bg-slate-100/60 hover:ring-2 hover:ring-dashed hover:ring-blue-400" : ""}`}
+                      style={{
+                        textAlign: textStyles.program?.textAlign || "center",
+                      }}
+                    >
+                      <h2
+                        style={getStyleObj(textStyles.program)}
+                        className="mb-2 leading-tight"
+                      >
+                        {data.program || (
+                          <span className="inline-block h-[0.8em] w-2/3 bg-slate-200/60 rounded no-print"></span>
+                        )}
+                      </h2>
+                      <h1
+                        style={getStyleObj(textStyles.subject)}
+                        className="leading-tight px-4"
+                      >
+                        {data.subject || (
+                          <span className="inline-block h-[0.8em] w-3/4 bg-slate-200/60 rounded no-print"></span>
+                        )}
+                      </h1>
+                    </motion.div>
+                  )}
+
+                  {/* Logo Area */}
+                  {visibleSections.logo && (
+                    <motion.div
+                      drag
+                      dragConstraints={pageRef}
+                      dragMomentum={false}
+                      className={`flex items-center justify-center min-h-[140px] max-h-[280px] p-2 rounded transition-colors relative z-10 ${!isExporting ? "cursor-move hover:bg-slate-100/60 hover:ring-2 hover:ring-dashed hover:ring-blue-400" : ""}`}
+                    >
+                      {data.logoUrl ? (
+                        <img
+                          src={data.logoUrl}
+                          alt="Logo"
+                          className="max-w-full max-h-[220px] object-contain pointer-events-none"
+                        />
+                      ) : (
+                        <div className="w-[160px] h-[160px] border-[3px] border-dashed border-slate-300 text-slate-400 flex flex-col items-center justify-center rounded-xl no-print">
+                          <ImageIcon size={48} className="mb-2 opacity-50" />
+                          <span className="text-xs text-center px-4">
+                            Upload logo in sidebar
+                          </span>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {/* Topic Section */}
+                  {visibleSections.assignmentTopic && (
+                    <motion.div
+                      drag
+                      dragConstraints={pageRef}
+                      dragMomentum={false}
+                      className={`flex flex-col p-2 rounded transition-colors relative z-10 ${!isExporting ? "cursor-move hover:bg-slate-100/60 hover:ring-2 hover:ring-dashed hover:ring-blue-400" : ""}`}
+                      style={{
+                        textAlign:
+                          textStyles.assignmentType?.textAlign || "center",
+                      }}
+                    >
+                      <h2
+                        style={getStyleObj(textStyles.assignmentType)}
+                        className="mb-1.5 leading-tight"
+                      >
+                        {data.assignmentType || (
+                          <span className="inline-block h-[0.8em] w-1/2 bg-slate-200/60 rounded no-print"></span>
+                        )}
+                      </h2>
+                      <div
+                        className={`inline-block border-b-[3px] border-dotted border-[currentColor] px-10 pb-2 ${textStyles.assignmentType?.textAlign === "left" ? "self-start" : textStyles.assignmentType?.textAlign === "right" ? "self-end" : "self-center"}`}
+                      >
+                        <span
+                          style={getStyleObj(textStyles.topic)}
+                          className="leading-tight"
+                        >
+                          {data.topic || (
+                            <span className="inline-block h-[0.8em] w-32 bg-slate-200/60 rounded no-print"></span>
+                          )}
+                        </span>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Submitted By / Submitted To Container Block */}
+                  {(visibleSections.submittedBy ||
+                    visibleSections.submittedTo) && (
+                    <motion.div
+                      drag
+                      dragConstraints={pageRef}
+                      dragMomentum={false}
+                      className={`flex flex-row justify-between w-full relative mt-auto p-2 rounded transition-colors z-10 ${!isExporting ? "cursor-move hover:bg-slate-100/60 hover:ring-2 hover:ring-dashed hover:ring-blue-400" : ""}`}
+                    >
+                      {/* Vertical separator guide shown only if both panels are enabled */}
+                      {visibleSections.submittedBy &&
+                        visibleSections.submittedTo && (
+                          <div className="absolute left-1/2 top-0 bottom-0 w-[2px] bg-[currentColor] opacity-30 -translate-x-1/2"></div>
+                        )}
+
+                      {/* Submitted By - Left Subpanel */}
+                      {visibleSections.submittedBy ? (
+                        <div
+                          className={`${visibleSections.submittedTo ? "w-[46%]" : "w-full"} flex flex-col pr-4`}
+                        >
+                          <h3
+                            style={getStyleObj(textStyles.submittedByTitle)}
+                            className="border-b-[4px] border-[currentColor] inline-block pb-1.5 mb-5 self-start min-w-[140px]"
+                          >
+                            {data.submittedByTitle || (
+                              <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
+                            )}
+                          </h3>
+
+                          <div className="flex mb-4 items-end">
+                            <span
+                              style={getStyleObj(textStyles.submitterNameLabel)}
+                              className="mr-3 whitespace-nowrap min-w-[50px]"
+                            >
+                              {data.submitterNameLabel || (
+                                <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
+                              )}
+                            </span>
+                            <div
+                              style={getStyleObj(textStyles.submitterName)}
+                              className="flex-grow border-b-[2px] border-dotted border-[currentColor] text-center pb-0.5 min-h-[1.8em]"
+                            >
+                              {data.submitterName || (
+                                <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex mb-4 items-end">
+                            <span
+                              style={getStyleObj(textStyles.submitterRollLabel)}
+                              className="mr-3 whitespace-nowrap min-w-[50px]"
+                            >
+                              {data.submitterRollLabel || (
+                                <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
+                              )}
+                            </span>
+                            <div
+                              style={getStyleObj(textStyles.submitterRoll)}
+                              className="flex-grow border-b-[2px] border-dotted border-[currentColor] text-center pb-0.5 min-h-[1.8em]"
+                            >
+                              {data.submitterRoll || (
+                                <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex mb-4 items-end">
+                            <span
+                              style={getStyleObj(textStyles.submitterSemLabel)}
+                              className="mr-3 whitespace-nowrap min-w-[50px]"
+                            >
+                              {data.submitterSemLabel || (
+                                <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
+                              )}
+                            </span>
+                            <div
+                              style={getStyleObj(textStyles.submitterSem)}
+                              className="flex-grow border-b-[2px] border-dotted border-[currentColor] pb-0.5 min-h-[1.8em] text-center"
+                            >
+                              {data.submitterSem || (
+                                <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex mb-4 items-end">
+                            <span
+                              style={getStyleObj(textStyles.submitterDateLabel)}
+                              className="mr-3 whitespace-nowrap min-w-[50px]"
+                            >
+                              {data.submitterDateLabel || (
+                                <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
+                              )}
+                            </span>
+                            <div
+                              style={getStyleObj(textStyles.submitterDate)}
+                              className="flex-grow border-b-[2px] border-dotted border-[currentColor] pb-0.5 min-h-[1.8em] text-center"
+                            >
+                              {data.submitterDate || (
+                                <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {/* Submitted To - Right Subpanel */}
+                      {visibleSections.submittedTo ? (
+                        <div
+                          className={`${visibleSections.submittedBy ? "w-[46%]" : "w-full"} flex flex-col pl-4`}
+                        >
+                          <h3
+                            style={getStyleObj(textStyles.submittedToTitle)}
+                            className="border-b-[4px] border-[currentColor] inline-block pb-1.5 mb-5 self-end min-w-[140px] text-right"
+                          >
+                            {data.submittedToTitle || (
+                              <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
+                            )}
+                          </h3>
+
+                          <div className="w-full flex flex-col mt-auto mb-4">
+                            <div className="w-full border-b-[2px] border-dotted border-[currentColor] mb-3"></div>
+                            <div
+                              style={getStyleObj(textStyles.submittedToName)}
+                              className="w-full text-center min-h-[1.8em]"
+                            >
+                              {data.submittedToName || (
+                                <span className="inline-block h-[0.8em] w-3/4 bg-slate-200/60 rounded no-print"></span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+                    </motion.div>
+                  )}
+                </div>
+              ) : (
+                /* Centered Academic Classic Layout (Layout 2 - Image Replica) */
+                <div
+                  key={`centered-${layoutKey}`}
+                  className="flex-1 flex flex-col h-full w-full justify-between items-center text-center text-slate-900"
+                  ref={pageRef}
                 >
-                  {/* Vertical separator guide shown only if both panels are enabled */}
-                  {visibleSections.submittedBy &&
-                    visibleSections.submittedTo && (
-                      <div className="absolute left-1/2 top-0 bottom-0 w-[2px] bg-[currentColor] opacity-30 -translate-x-1/2"></div>
+                  {/* 1. Header Area: Logo, University, Faculty, Degree */}
+                  <motion.div
+                    drag
+                    dragConstraints={pageRef}
+                    dragMomentum={false}
+                    className={`flex flex-col items-center p-2 rounded w-full transition-colors relative z-10 ${!isExporting ? "cursor-move hover:bg-slate-100/60 hover:ring-2 hover:ring-dashed hover:ring-blue-400" : ""}`}
+                  >
+                    {visibleSections.logo && (
+                      <div className="mb-4 flex items-center justify-center">
+                        {data.logoUrl ? (
+                          <img
+                            src={data.logoUrl}
+                            alt="Logo"
+                            className="max-h-[120px] object-contain pointer-events-none"
+                          />
+                        ) : (
+                          <div className="w-[100px] h-[100px] border-2 border-dashed border-slate-300 text-slate-400 flex flex-col items-center justify-center rounded-lg no-print">
+                            <ImageIcon size={24} className="mb-1 opacity-50" />
+                            <span className="text-[10px] text-center px-2">
+                              No Logo
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     )}
 
-                  {/* Submitted By - Left Subpanel */}
-                  {visibleSections.submittedBy ? (
-                    <div
-                      className={`${visibleSections.submittedTo ? "w-[46%]" : "w-full"} flex flex-col pr-4`}
-                    >
-                      <h3
-                        style={getStyleObj(textStyles.submittedByTitle)}
-                        className="border-b-[4px] border-[currentColor] inline-block pb-1.5 mb-5 self-start min-w-[140px]"
+                    {visibleSections.affiliation && data.affiliation && (
+                      <h1
+                        style={getStyleObj(textStyles.affiliation)}
+                        className="leading-tight mb-1 font-bold"
                       >
-                        {data.submittedByTitle || (
-                          <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
-                        )}
-                      </h3>
+                        {data.affiliation}
+                      </h1>
+                    )}
 
-                      <div className="flex mb-4 items-end">
-                        <span
-                          style={getStyleObj(textStyles.submitterNameLabel)}
-                          className="mr-3 whitespace-nowrap min-w-[50px]"
-                        >
-                          {data.submitterNameLabel || (
-                            <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
-                          )}
-                        </span>
-                        <div
-                          style={getStyleObj(textStyles.submitterName)}
-                          className="flex-grow border-b-[2px] border-dotted border-[currentColor] text-center pb-0.5 min-h-[1.8em]"
-                        >
-                          {data.submitterName || (
-                            <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
-                          )}
-                        </div>
-                      </div>
+                    {data.faculty && (
+                      <h2
+                        style={getStyleObj(textStyles.faculty)}
+                        className="leading-tight mb-1 font-semibold"
+                      >
+                        {data.faculty}
+                      </h2>
+                    )}
 
-                      <div className="flex mb-4 items-end">
-                        <span
-                          style={getStyleObj(textStyles.submitterRollLabel)}
-                          className="mr-3 whitespace-nowrap min-w-[50px]"
-                        >
-                          {data.submitterRollLabel || (
-                            <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
-                          )}
-                        </span>
-                        <div
-                          style={getStyleObj(textStyles.submitterRoll)}
-                          className="flex-grow border-b-[2px] border-dotted border-[currentColor] text-center pb-0.5 min-h-[1.8em]"
-                        >
-                          {data.submitterRoll || (
-                            <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex mb-4 items-end">
-                        <span
-                          style={getStyleObj(textStyles.submitterSemLabel)}
-                          className="mr-3 whitespace-nowrap min-w-[50px]"
-                        >
-                          {data.submitterSemLabel || (
-                            <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
-                          )}
-                        </span>
-                        <div
-                          style={getStyleObj(textStyles.submitterSem)}
-                          className="flex-grow border-b-[2px] border-dotted border-[currentColor] pb-0.5 min-h-[1.8em] text-center"
-                        >
-                          {data.submitterSem || (
-                            <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex mb-4 items-end">
-                        <span
-                          style={getStyleObj(textStyles.submitterDateLabel)}
-                          className="mr-3 whitespace-nowrap min-w-[50px]"
-                        >
-                          {data.submitterDateLabel || (
-                            <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
-                          )}
-                        </span>
-                        <div
-                          style={getStyleObj(textStyles.submitterDate)}
-                          className="flex-grow border-b-[2px] border-dotted border-[currentColor] pb-0.5 min-h-[1.8em] text-center"
-                        >
-                          {data.submitterDate || (
-                            <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {/* Submitted To - Right Subpanel */}
-                  {visibleSections.submittedTo ? (
-                    <div
-                      className={`${visibleSections.submittedBy ? "w-[46%]" : "w-full"} flex flex-col pl-4`}
-                    >
+                    {data.program && (
                       <h3
+                        style={getStyleObj(textStyles.program)}
+                        className="leading-tight font-semibold"
+                      >
+                        {data.program}
+                      </h3>
+                    )}
+                  </motion.div>
+
+                  {/* 2. Middle Block: Document Title / Topic */}
+                  {visibleSections.assignmentTopic && (
+                    <motion.div
+                      drag
+                      dragConstraints={pageRef}
+                      dragMomentum={false}
+                      className={`flex flex-col items-center p-2 rounded w-full transition-colors relative z-10 ${!isExporting ? "cursor-move hover:bg-slate-100/60 hover:ring-2 hover:ring-dashed hover:ring-blue-400" : ""}`}
+                    >
+                      <h2
+                        style={getStyleObj(textStyles.assignmentType)}
+                        className="uppercase tracking-wide mb-2 font-bold"
+                      >
+                        {data.assignmentType}
+                      </h2>
+                      <h1
+                        style={getStyleObj(textStyles.topic)}
+                        className="leading-snug px-6 max-w-[90%] font-bold"
+                      >
+                        {data.topic}
+                      </h1>
+                    </motion.div>
+                  )}
+
+                  {/* 3. Submitted To Section */}
+                  {visibleSections.submittedTo && (
+                    <motion.div
+                      drag
+                      dragConstraints={pageRef}
+                      dragMomentum={false}
+                      className={`flex flex-col items-center p-2 rounded w-full transition-colors relative z-10 ${!isExporting ? "cursor-move hover:bg-slate-100/60 hover:ring-2 hover:ring-dashed hover:ring-blue-400" : ""}`}
+                    >
+                      <span
                         style={getStyleObj(textStyles.submittedToTitle)}
-                        className="border-b-[4px] border-[currentColor] inline-block pb-1.5 mb-5 self-end min-w-[140px] text-right"
+                        className="mb-1.5 block text-slate-500 font-medium"
                       >
-                        {data.submittedToTitle || (
-                          <span className="inline-block h-[0.8em] w-full bg-slate-200/60 rounded no-print"></span>
-                        )}
-                      </h3>
+                        {data.submittedToTitle}
+                      </span>
+                      <span
+                        style={getStyleObj(textStyles.submittedToName)}
+                        className="block font-bold text-lg"
+                      >
+                        {data.submittedToName}
+                      </span>
+                    </motion.div>
+                  )}
 
-                      <div className="w-full flex flex-col mt-auto mb-4">
-                        <div className="w-full border-b-[2px] border-dotted border-[currentColor] mb-3"></div>
-                        <div
-                          style={getStyleObj(textStyles.submittedToName)}
-                          className="w-full text-center min-h-[1.8em]"
+                  {/* 4. College Department Bottom Info */}
+                  <motion.div
+                    drag
+                    dragConstraints={pageRef}
+                    dragMomentum={false}
+                    className={`flex flex-col items-center p-2 rounded w-full transition-colors relative z-10 ${!isExporting ? "cursor-move hover:bg-slate-100/60 hover:ring-2 hover:ring-dashed hover:ring-blue-400" : ""}`}
+                  >
+                    {data.department && (
+                      <p
+                        style={getStyleObj(textStyles.department)}
+                        className="leading-tight mb-1 font-semibold"
+                      >
+                        {data.department}
+                      </p>
+                    )}
+                    <p
+                      style={getStyleObj(textStyles.collegeName)}
+                      className="leading-tight mb-1 font-bold"
+                    >
+                      {data.collegeName}
+                    </p>
+                    {visibleSections.address && data.address && (
+                      <p
+                        style={getStyleObj(textStyles.address)}
+                        className="leading-tight text-slate-600 font-medium"
+                      >
+                        {data.address}
+                      </p>
+                    )}
+                  </motion.div>
+
+                  {/* 5. Declaration / Partial Fulfillment Statement */}
+                  {data.fulfillment && (
+                    <motion.div
+                      drag
+                      dragConstraints={pageRef}
+                      dragMomentum={false}
+                      className={`p-2 rounded w-full transition-colors relative z-10 ${!isExporting ? "cursor-move hover:bg-slate-100/60 hover:ring-2 hover:ring-dashed hover:ring-blue-400" : ""}`}
+                    >
+                      <p
+                        style={getStyleObj(textStyles.fulfillment)}
+                        className="italic font-bold px-10 leading-relaxed max-w-[85%] mx-auto"
+                      >
+                        {data.fulfillment}
+                      </p>
+                    </motion.div>
+                  )}
+
+                  {/* 6. Submitted By Block (Academic Standard Stack) */}
+                  {visibleSections.submittedBy && (
+                    <motion.div
+                      drag
+                      dragConstraints={pageRef}
+                      dragMomentum={false}
+                      className={`flex flex-col items-center p-2 rounded w-full transition-colors relative z-10 ${!isExporting ? "cursor-move hover:bg-slate-100/60 hover:ring-2 hover:ring-dashed hover:ring-blue-400" : ""}`}
+                    >
+                      <span
+                        style={getStyleObj(textStyles.submittedByTitle)}
+                        className="block mb-1 font-bold text-slate-700"
+                      >
+                        {data.submittedByTitle}
+                      </span>
+                      <span
+                        style={getStyleObj(textStyles.submitterName)}
+                        className="block font-bold text-base"
+                      >
+                        {data.submitterName}
+                      </span>
+                      {data.submitterRoll && (
+                        <span
+                          style={getStyleObj(textStyles.submitterRoll)}
+                          className="block mt-0.5 text-slate-600 font-semibold"
                         >
-                          {data.submittedToName || (
-                            <span className="inline-block h-[0.8em] w-3/4 bg-slate-200/60 rounded no-print"></span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-                </motion.div>
+                          {data.submitterRoll}
+                        </span>
+                      )}
+                    </motion.div>
+                  )}
+                </div>
               )}
             </div>
           </div>
         </div>
+
+        {/* Cohesive Typographic Swiss Footer */}
+        <SwissFooter onScrollToTop={handleScrollToTop} />
       </div>
     </div>
   );
