@@ -137,7 +137,7 @@ const DEFAULT_DATA: CoverData = {
   submitterDate: "",
   submittedToTitle: "Submitted To",
   submittedToName: "socrates",
-  logoUrl: "/logo.png",
+  logoUrl: "./logo.png",
 };
 
 const DEFAULT_TEXT_STYLES: Record<string, TextStyle> = {
