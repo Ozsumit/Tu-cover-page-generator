@@ -1,5 +1,5 @@
 {
-  "name": "Cover Page Generator",
+  "name": "TU Cover Page Generator",
   "description": "A customizable university/college cover page generator that lets you create, preview, and print assignment cover pages.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
